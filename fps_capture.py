@@ -15,7 +15,8 @@ def find_presentmon(settings_path: str = "") -> str | None:
     candidates = [
         settings_path,
         str(Path(sys.executable).parent / "PresentMon.exe"),
-        str(Path(sys.executable).parent / "tools" / "PresentMon.exe"),
+        str(Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "tools" / "PresentMon.exe"),
+        str(Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "PresentMon.exe"),
         str(Path(__file__).parent / "tools" / "PresentMon.exe"),
         shutil.which("PresentMon.exe") or "",
         shutil.which("PresentMon") or "",
