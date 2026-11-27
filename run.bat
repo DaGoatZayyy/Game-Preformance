@@ -1,10 +1,15 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-where py >nul 2>nul
-if %errorlevel%==0 (
-    py -3 main.py
+if exist "dist\Performance Air.exe" (
+    start "" "dist\Performance Air.exe"
 ) else (
-    python main.py
+    where pythonw >nul 2>nul
+    if errorlevel 1 (
+        echo Python is not installed. Build the standalone EXE with build.bat first.
+        pause
+    ) else (
+        start "" pythonw main.py
+    )
 )
-if errorlevel 1 pause
+exit /b 0
