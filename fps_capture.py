@@ -79,7 +79,8 @@ class FPSCapture:
             self.process = subprocess.Popen(
                 [executable, "--output_stdout", "--no_console_stats",
                  "--no_track_gpu", "--no_track_input",
-                 "--session_name", f"PerformanceAir-{uuid.uuid4().hex[:8]}"],
+                 "--session_name", f"PerformanceAir-{uuid.uuid4().hex[:8]}",
+                 "--v1_metrics"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -123,7 +124,7 @@ class FPSCapture:
                     pid_col = names.index("processid")
                     frame_col = next(
                         (names.index(key) for key in
-                         ("msbetweenpresents", "msbetweendisplaychange", "msbetweenpresent")
+                         ("msbetweenpresents", "msbetweendisplaychange", "msbetweenpresent", "frametime")
                          if key in names), None
                     )
                     continue
