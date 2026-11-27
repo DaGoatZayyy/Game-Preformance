@@ -4,7 +4,11 @@ import sys
 import time
 import platform
 import subprocess
+import socket
+import urllib.request
 from threading import Thread
+
+from fps_capture import FPSCapture, find_presentmon
 
 import psutil
 from PySide6.QtCore import Qt, QTimer, QSettings
@@ -12,8 +16,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QProgressBar,
-    QCheckBox, QComboBox
-)
+    QCheckBox, QComboBox, QLineEdit, QFileDialog
 
 APP_NAME = "Performance Air"
 RED = "#e53945"
@@ -102,6 +105,10 @@ class PerformanceAir(QMainWindow):
         self.last_tick = time.time()
         self.ping_value = None
         self.ping_busy = False
+        self.public_ip = None
+        self.public_ip_checking = False
+        self.public_ip_last_check = 0
+        self.fps_capture = FPSCapture()
         self.metrics = {}
         self._build_ui()
         self._load_options()
@@ -240,7 +247,12 @@ class PerformanceAir(QMainWindow):
         self.option_ping = QCheckBox("Show ping in Overview")
         self.option_processes = QCheckBox("Show running process count in System card")
         self.option_network = QCheckBox("Show network traffic rates")
-        for checkbox in (self.option_fps, self.option_ping, self.option_processes, self.option_network):
+        self.option_local_ip = QCheckBox("Show local IP address")
+        self.option_public_ip = QCheckBox("Show public IP address (external lookup)")
+        self.option_cpu_freq = QCheckBox("Show CPU frequency")
+        self.option_gpu_temp = QCheckBox("Show GPU temperature")
+        self.option_storage = QCheckBox("Show storage card")
+        for checkbox in (self.option_fps, self.option_ping, self.option_processes, self.option_network, self.option_local_ip, self.option_public_ip, self.option_cpu_freq, self.option_gpu_temp, self.option_storage):
             checkbox.setObjectName("optionCheck")
             checkbox.stateChanged.connect(self._save_options)
             layout.addWidget(self._option_row(checkbox))
@@ -279,6 +291,26 @@ class PerformanceAir(QMainWindow):
         self.refresh_select.currentIndexChanged.connect(self._change_refresh)
         row.addWidget(self.refresh_select)
         layout.addWidget(row_frame)
+        pm_frame = QFrame()
+        pm_frame.setObjectName("settingRow")
+        pm_layout = QVBoxLayout(pm_frame)
+        pm_layout.setContentsMargins(16, 14, 16, 14)
+        pm_title = QLabel("Game FPS capture")
+        pm_title.setObjectName("settingTitle")
+        pm_hint = QLabel("Choose the PresentMon executable, or bundle it at tools/PresentMon.exe before building.")
+        pm_hint.setObjectName("muted")
+        pm_row = QHBoxLayout()
+        self.presentmon_path = QLineEdit(self.settings.value("presentmon_path", ""))
+        self.presentmon_path.setPlaceholderText("PresentMon.exe path (optional)")
+        self.presentmon_path.editingFinished.connect(lambda: self.settings.setValue("presentmon_path", self.presentmon_path.text().strip()))
+        browse_pm = QPushButton("Browse")
+        browse_pm.clicked.connect(self._browse_presentmon)
+        pm_row.addWidget(self.presentmon_path, 1)
+        pm_row.addWidget(browse_pm)
+        pm_layout.addWidget(pm_title)
+        pm_layout.addWidget(pm_hint)
+        pm_layout.addLayout(pm_row)
+        layout.addWidget(pm_frame)
         about = QFrame()
         about.setObjectName("settingRow")
         about_layout = QVBoxLayout(about)
@@ -293,6 +325,12 @@ class PerformanceAir(QMainWindow):
         layout.addStretch()
         return page
 
+    def _browse_presentmon(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select PresentMon", "", "Applications (*.exe)")
+        if path:
+            self.presentmon_path.setText(path)
+            self.settings.setValue("presentmon_path", path)
+
     def show_page(self, key):
         self.pages.setCurrentIndex({"overview": 0, "options": 1, "settings": 2}[key])
         self.page_title.setText(key.capitalize())
@@ -304,11 +342,19 @@ class PerformanceAir(QMainWindow):
         self.option_ping.setChecked(self.settings.value("show_ping", False, bool))
         self.option_processes.setChecked(self.settings.value("show_processes", True, bool))
         self.option_network.setChecked(self.settings.value("show_network", True, bool))
+        self.option_local_ip.setChecked(self.settings.value("show_local_ip", True, bool))
+        self.option_public_ip.setChecked(self.settings.value("show_public_ip", False, bool))
+        self.option_cpu_freq.setChecked(self.settings.value("show_cpu_freq", True, bool))
+        self.option_gpu_temp.setChecked(self.settings.value("show_gpu_temp", True, bool))
+        self.option_storage.setChecked(self.settings.value("show_storage", True, bool))
         self._apply_option_visibility()
 
     def _save_options(self, *_):
         for key, widget in (("show_fps", self.option_fps), ("show_ping", self.option_ping),
-                            ("show_processes", self.option_processes), ("show_network", self.option_network)):
+                            ("show_processes", self.option_processes), ("show_network", self.option_network),
+                            ("show_local_ip", self.option_local_ip), ("show_public_ip", self.option_public_ip),
+                            ("show_cpu_freq", self.option_cpu_freq), ("show_gpu_temp", self.option_gpu_temp),
+                            ("show_storage", self.option_storage)):
             self.settings.setValue(key, widget.isChecked())
         self._apply_option_visibility()
 
@@ -316,11 +362,46 @@ class PerformanceAir(QMainWindow):
         if hasattr(self, "fps_card"):
             self.fps_card.setVisible(self.option_fps.isChecked())
             self.ping_card.setVisible(self.option_ping.isChecked())
+            self.metrics["storage"].setVisible(self.option_storage.isChecked())
+            if self.option_fps.isChecked():
+                exe = find_presentmon(self.settings.value("presentmon_path", ""))
+                if exe:
+                    self.fps_capture.start(exe)
+                else:
+                    self.fps_capture.status = "Set PresentMon.exe in Settings to enable FPS"
+            else:
+                self.fps_capture.stop()
 
     def _change_refresh(self):
         interval = int(self.refresh_select.currentData())
         self.settings.setValue("refresh_ms", interval)
         self.timer.setInterval(interval)
+
+    def _local_ip(self):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sock.connect(("1.1.1.1", 80))
+                return sock.getsockname()[0]
+            finally:
+                sock.close()
+        except Exception:
+            return "Unavailable"
+
+    def _check_public_ip(self):
+        if self.public_ip_checking or time.time() - self.public_ip_last_check < 60:
+            return
+        self.public_ip_checking = True
+        self.public_ip_last_check = time.time()
+        def lookup():
+            try:
+                with urllib.request.urlopen("https://api.ipify.org", timeout=4) as response:
+                    self.public_ip = response.read(64).decode("ascii", errors="ignore").strip()
+            except Exception:
+                self.public_ip = "Unavailable"
+            finally:
+                self.public_ip_checking = False
+        Thread(target=lookup, daemon=True).start()
 
     def _ping(self):
         if self.ping_busy:
@@ -348,7 +429,7 @@ class PerformanceAir(QMainWindow):
             freq = psutil.cpu_freq()
             cores = psutil.cpu_count(logical=True) or 0
             detail = f"{cores} logical cores"
-            if freq:
+            if freq and self.option_cpu_freq.isChecked():
                 detail += f" · {freq.current / 1000:.2f} GHz"
             self.metrics["cpu"].update_metric(f"{cpu:.0f}%", detail, cpu)
 
@@ -356,7 +437,7 @@ class PerformanceAir(QMainWindow):
             if gpu.get("available"):
                 used, total = gpu["memory_used"], gpu["memory_total"]
                 detail = f'{nice_bytes(used)} / {nice_bytes(total)} VRAM'
-                if gpu.get("temperature") is not None:
+                if gpu.get("temperature") is not None and self.option_gpu_temp.isChecked():
                     detail += f' · {gpu["temperature"]}°C'
                 self.metrics["gpu"].update_metric(f'{gpu["usage"]}%', gpu["name"] + " · " + detail, gpu["usage"])
             else:
@@ -386,6 +467,11 @@ class PerformanceAir(QMainWindow):
             up = max(0, net.bytes_sent - self.last_net.bytes_sent) / elapsed
             self.last_net, self.last_tick = net, now
             net_detail = f"↓ {nice_bytes(down)}/s  ↑ {nice_bytes(up)}/s" if self.option_network.isChecked() else "Traffic rates hidden in Options"
+            if self.option_local_ip.isChecked():
+                net_detail += f" · Local {self._local_ip()}"
+            if self.option_public_ip.isChecked():
+                self._check_public_ip()
+                net_detail += f" · Public {self.public_ip or chr(8230)}"
             self.metrics["network"].update_metric(f"↓ {nice_bytes(down)}/s", net_detail, None)
 
             uptime = int(time.time() - psutil.boot_time())
@@ -398,7 +484,8 @@ class PerformanceAir(QMainWindow):
             self.metrics["system"].update_metric(str(processes), sys_detail, None)
 
             if self.option_fps.isChecked():
-                self.fps_card.update_metric("N/A", "No game FPS source connected yet", None)
+                value = self.fps_capture.value
+                self.fps_card.update_metric(f"{value} FPS" if value is not None else "—", self.fps_capture.status, None)
             if self.option_ping.isChecked():
                 self._ping()
                 self.ping_card.update_metric(f"{self.ping_value} ms" if self.ping_value is not None else "—",
@@ -440,6 +527,7 @@ class PerformanceAir(QMainWindow):
         """
 
     def closeEvent(self, event):
+        self.fps_capture.stop()
         self.settings.sync()
         event.accept()
 
