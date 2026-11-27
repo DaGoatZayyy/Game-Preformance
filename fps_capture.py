@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from collections import deque
 from pathlib import Path
 from threading import Thread
@@ -78,7 +79,7 @@ class FPSCapture:
             self.process = subprocess.Popen(
                 [executable, "--output_stdout", "--no_console_stats",
                  "--no_track_gpu", "--no_track_input",
-                 "--session_name", "PerformanceAir"],
+                 "--session_name", f"PerformanceAir-{uuid.uuid4().hex[:8]}"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
