@@ -6,6 +6,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from collections import deque
 from pathlib import Path
 from threading import Thread
@@ -76,9 +77,10 @@ class FPSCapture:
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             self.process = subprocess.Popen(
                 [executable, "--output_stdout", "--no_console_stats",
-                 "--no_track_gpu", "--no_track_input"],
+                 "--no_track_gpu", "--no_track_input",
+                 "--session_name", "PerformanceAir"],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
                 text=True,
                 encoding="utf-8-sig",
                 errors="replace",
@@ -90,10 +92,23 @@ class FPSCapture:
             frame_col = None
             samples = deque(maxlen=90)
             active_pid = None
-            self.status = "Waiting for a game window"
+            last_error = None
+            self.status = "PresentMon running · waiting for game frames"
             while not self._stop and self.process.poll() is None:
                 line = self.process.stdout.readline()
                 if not line:
+                    if self.process.poll() is not None:
+                        break
+                    time.sleep(0.05)
+                    continue
+                cleaned = line.strip()
+                lowered = cleaned.lower()
+                if any(term in lowered for term in (
+                    "failed to start", "access denied", "error:", "unable to",
+                    "could not", "not permitted"
+                )):
+                    last_error = cleaned[:180]
+                    self.status = "PresentMon: " + last_error
                     continue
                 try:
                     row = next(csv.reader([line]))
@@ -133,7 +148,19 @@ class FPSCapture:
                     self.value = None
                     self.status = "Waiting for game frames"
             if not self._stop:
-                self.status = "PresentMon stopped"
+                exit_code = self.process.poll()
+                if last_error:
+                    self.status = "PresentMon error: " + last_error
+                elif header is None:
+                    self.status = (
+                        f"PresentMon exited (code {exit_code}) without CSV data. "
+                        "Try running Performance Air as administrator."
+                    )
+                else:
+                    self.status = (
+                        f"PresentMon exited (code {exit_code}). "
+                        "Try running Performance Air as administrator."
+                    )
         except FileNotFoundError:
             self.status = "PresentMon executable not found"
         except Exception as exc:
