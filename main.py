@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QProgressBar,
     QCheckBox, QComboBox, QLineEdit, QFileDialog
+)
 
 APP_NAME = "Performance Air"
 RED = "#e53945"
