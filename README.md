@@ -30,11 +30,11 @@ The EXE is a single-file, windowed application. It does not need a Command Promp
 2. Run `build.bat`.
 3. Open `dist/Performance Air.exe`.
 
-The build script packages Python and the app dependencies into one executable. If `tools/PresentMon.exe` exists before building, it is bundled inside the EXE too.
+The build script downloads the official x64 PresentMon console executable from the GameTechDev/PresentMon GitHub release and bundles it with Python and the app dependencies inside the EXE. If the download is unavailable, you can select a local PresentMon executable in Settings.
 
 ## Game FPS setup
 
-FPS capture uses the official PresentMon console executable. Put it at `tools/PresentMon.exe` before running `build.bat` to bundle it, or select its location in **Settings → Game FPS capture**.
+FPS capture uses the official PresentMon console executable. The build script downloads and bundles it automatically. You can also select a different copy in **Settings → Game FPS capture**.
 
 PresentMon supports a broad range of Windows graphics APIs, but no capture tool can guarantee a reading for every game. FPS can be unavailable when a game blocks frame-event capture, uses an unsupported presentation path, or Windows permissions prevent ETW capture. Some systems may need the Windows **Performance Log Users** permission or an elevated launch for complete process visibility. The app does not attempt to change Windows permissions automatically.
 
@@ -54,6 +54,8 @@ The public IP option contacts an external IP lookup service only when enabled. T
 ## Hardware support
 
 CPU, RAM, storage and network metrics use psutil and Windows networking APIs. GPU utilization/VRAM/temperature currently use NVIDIA NVML; other GPU vendors may show N/A until additional providers are added.
+
+PresentMon is an open-source component from Intel's GameTechDev project; see [the official project and license](https://github.com/GameTechDev/PresentMon).
 
 ## Scope
 
