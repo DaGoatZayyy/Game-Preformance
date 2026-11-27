@@ -472,7 +472,8 @@ class PerformanceAir(QMainWindow):
             if self.option_public_ip.isChecked():
                 self._check_public_ip()
                 net_detail += f" · Public {self.public_ip or chr(8230)}"
-            self.metrics["network"].update_metric(f"↓ {nice_bytes(down)}/s", net_detail, None)
+            network_value = f"↓ {nice_bytes(down)}/s" if self.option_network.isChecked() else "Traffic hidden"
+            self.metrics["network"].update_metric(network_value, net_detail, None)
 
             uptime = int(time.time() - psutil.boot_time())
             days, rem = divmod(uptime, 86400)
@@ -481,7 +482,7 @@ class PerformanceAir(QMainWindow):
             sys_detail = f"Uptime {days}d {hours}h · {platform.system()} {platform.release()}"
             if self.option_processes.isChecked():
                 sys_detail += f" · {processes} processes"
-            self.metrics["system"].update_metric(str(processes), sys_detail, None)
+            self.metrics["system"].update_metric(str(processes) if self.option_processes.isChecked() else "ONLINE", sys_detail, None)
 
             if self.option_fps.isChecked():
                 value = self.fps_capture.value
@@ -522,7 +523,7 @@ class PerformanceAir(QMainWindow):
         QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid #555b66; border-radius: 5px; background: #14161a; }}
         QCheckBox::indicator:checked {{ background: {RED}; border-color: {RED}; }}
         QLabel#settingTitle {{ font-size: 14px; font-weight: 650; }}
-        QComboBox {{ background: #202329; border: 1px solid #383c45; border-radius: 7px; padding: 8px 12px; min-width: 130px; }}
+        QComboBox, QLineEdit {{ background: #202329; border: 1px solid #383c45; border-radius: 7px; padding: 8px 12px; min-width: 130px; }}
         QComboBox QAbstractItemView {{ background: {PANEL}; selection-background-color: {RED}; }}
         """
 
