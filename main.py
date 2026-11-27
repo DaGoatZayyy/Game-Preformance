@@ -154,7 +154,7 @@ class PerformanceAir(QMainWindow):
             self.nav_buttons[key] = btn
             side.addWidget(btn)
         side.addStretch()
-        foot = QLabel("DESKTOP MONITOR\nVERSION 1.0.0")
+        foot = QLabel("DESKTOP MONITOR\nVERSION 1.1.0")
         foot.setObjectName("sidebarFoot")
         side.addWidget(foot)
 
@@ -318,7 +318,7 @@ class PerformanceAir(QMainWindow):
         about_layout.setContentsMargins(16, 14, 16, 14)
         about_title = QLabel("About Performance Air")
         about_title.setObjectName("settingTitle")
-        about_text = QLabel("Version 1.0.0 · Windows desktop monitor\nGPU telemetry depends on driver and hardware support.")
+        about_text = QLabel("Version 1.1.0 · Windows desktop monitor\nGPU telemetry depends on driver and hardware support.")
         about_text.setObjectName("muted")
         about_layout.addWidget(about_title)
         about_layout.addWidget(about_text)
@@ -331,6 +331,8 @@ class PerformanceAir(QMainWindow):
         if path:
             self.presentmon_path.setText(path)
             self.settings.setValue("presentmon_path", path)
+            self.fps_capture.stop()
+            self._apply_option_visibility()
 
     def show_page(self, key):
         self.pages.setCurrentIndex({"overview": 0, "options": 1, "settings": 2}[key])
