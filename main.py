@@ -413,8 +413,13 @@ class PerformanceAir(QMainWindow):
         def run():
             try:
                 flag = "-n" if platform.system().lower() == "windows" else "-c"
-                result = subprocess.run(["ping", flag, "1", "-w", "1200", "1.1.1.1"],
-                                        capture_output=True, text=True, timeout=2)
+                result = subprocess.run(
+                    ["ping", flag, "1", "-w", "1200", "1.1.1.1"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
                 self.ping_value = round(result.elapsed * 1000) if hasattr(result, "elapsed") and result.returncode == 0 else None
                 if result.returncode == 0:
                     import re
